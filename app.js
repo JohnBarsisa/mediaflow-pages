@@ -67,6 +67,23 @@
     ['reddit.com','Reddit'],['redd.it','Reddit'],['v.redd.it','Reddit'],['twitch.tv','Twitch'],['bandcamp.com','Bandcamp'],
   ];
   const sampleUrl = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+  const sourceHelp = {
+    YouTube: {
+      message: 'For your own uploads, use YouTube Studio → Content → Download. For other videos, use YouTube’s offline option where available, or ask the creator for the original file.',
+      label: 'Open YouTube Studio ↗',
+      href: 'https://studio.youtube.com/',
+    },
+    'X / Twitter': {
+      message: 'Open the post in X and look for Download video in the video’s menu. It’s available on eligible plans when the post allows it. Otherwise, ask the creator for the file.',
+      label: 'X download instructions ↗',
+      href: 'https://help.x.com/en/using-x/x-videos#video-downloads-posts',
+    },
+    Instagram: {
+      message: 'For an eligible public Reel, open it in the Instagram app and tap Share → Download. To export your own posts, use Download Your Information in Accounts Center.',
+      label: 'Instagram export instructions ↗',
+      href: 'https://help.instagram.com/181231772500920',
+    },
+  };
   const directMediaRoots = new Map([
     ['upload.wikimedia.org', '/wikipedia/commons/'],
     ['interactive-examples.mdn.mozilla.net', '/media/cc0-videos/'],
@@ -274,18 +291,25 @@
     } catch(err) {
       if (turn !== inspectionId || $('media-url').value.trim() !== url) return;
       const message = String(err.message || 'Unable to check this link.');
-      const blocked = err.code === 'cloud_unavailable' || /bot verification|didn’t allow MediaFlow|HTTP 403/i.test(message);
-      const youtube = blocked && detectPlatform(url) === 'YouTube';
-      $('mf-media-error-title').textContent = youtube ? 'YouTube didn’t provide download formats'
+      const blocked = err.code === 'cloud_unavailable'
+        || /bot verification|didn’t allow MediaFlow|HTTP 403|returned no media data|requires account sign-in|this media is private|uses DRM protection|no media streams|platform may have changed or blocked/i.test(message);
+      const platform = detectPlatform(url);
+      const help = blocked && Object.hasOwn(sourceHelp, platform) ? sourceHelp[platform] : null;
+      $('mf-media-error-title').textContent = help ? `${platform} download unavailable in MediaFlow`
         : blocked ? 'Not available for download here' : 'Couldn’t load formats';
-      $('mf-media-error-message').textContent = blocked
-        ? (youtube ? 'This watch link cannot be downloaded here. For your own uploads, get the MP4 from YouTube Studio. To check MediaFlow, try the sample file below.'
-            : 'The source did not provide a downloadable file. Open the original post or try the sample file below.')
-        : message;
+      $('mf-media-error-message').textContent = help?.message || message;
       const original = $('mf-open-source');
       original.href = url;
       original.hidden = !blocked;
-      $('mf-youtube-studio').hidden = !youtube;
+      const official = $('mf-source-help');
+      official.hidden = !help;
+      if (help) {
+        official.href = help.href;
+        official.textContent = help.label;
+      } else {
+        official.removeAttribute('href');
+        official.textContent = '';
+      }
       $('try-sample-fallback').hidden = !blocked;
       $('mf-media-error').hidden = false;
     }
