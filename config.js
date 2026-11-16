@@ -6,5 +6,5 @@ const MEDIAFLOW_TAILNET_HOST = window.location.hostname.toLowerCase().endsWith('
 window.MEDIAFLOW_API_BASE = MEDIAFLOW_TAILNET_HOST
   ? window.location.origin
   : (MEDIAFLOW_LOCAL_HOST ? 'http://127.0.0.1:8000' : 'https://mediaflow-api-vwin.onrender.com');
-window.MEDIAFLOW_PRIVATE_BETA = !(MEDIAFLOW_LOCAL_HOST || MEDIAFLOW_TAILNET_HOST);
+window.MEDIAFLOW_GUEST_MODE = !(MEDIAFLOW_LOCAL_HOST || MEDIAFLOW_TAILNET_HOST);
 window.MEDIAFLOW_IS_LOCAL = MEDIAFLOW_LOCAL_HOST || MEDIAFLOW_TAILNET_HOST;

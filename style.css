@@ -66,19 +66,6 @@ button,.panel,.side-card,.platform-pill,.topbar,.link-input-box,.job-item,.side-
 @media(max-width:680px){.hero-visual{display:none}.hero::before{opacity:.11}}
 
 /* Private beta access view: fully themed with current palette and appearance mode. */
-.mf-access-gate[hidden] { display:none!important; }
-.mf-access-gate { position:fixed;inset:0;z-index:10000;display:flex;justify-content:center;align-items:center;padding:22px;background:color-mix(in srgb, var(--shell) 92%, transparent);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px); }
-.mf-access-panel { width:min(440px,100%);padding:clamp(24px,4vw,38px);border-radius:23px;background:var(--card);border:1px solid var(--line);box-shadow:0 25px 80px #0003;color:var(--ink); }
-.mf-access-panel .mf-access-mark {width:50px;height:50px;border-radius:17px;background:linear-gradient(125deg,var(--a),var(--b));display:grid;place-items:center;color:#fff;font-size:23px;margin-bottom:21px;}
-.mf-access-panel h2 { font:800 clamp(25px,3vw,33px)/1.13 Outfit, sans-serif;letter-spacing:-1px;margin:7px 0 13px;color:inherit; }
-.mf-access-panel p {color:var(--muted);font-size:13px;line-height:1.75;margin:0 0 24px;}
-.mf-access-panel label {display:block;margin-bottom:8px;font-size:12px;font-weight:700;}
-.mf-access-panel input {width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:11px;color:inherit;background:var(--input);font-size:14px;}
-.mf-access-panel input:focus-visible {outline:2px solid var(--a);outline-offset:2px;}
-.mf-access-panel .primary-button {width:100%;margin-top:11px;display:block;text-align:center;}
-.mf-access-panel small {display:block;margin-top:17px;text-align:center;color:var(--muted);line-height:1.5;}
-.mf-access-error {color:#cb4a56;font-size:12px;min-height:17px;margin-top:9px;}
-@media(max-width:540px){.mf-access-gate{padding:12px}.mf-access-panel{padding:24px}.mf-access-panel h2{font-size:27px}}
 
 
 /* MediaFlow iOS viewport and control sizing fix (iPhone 15 Pro Max and smaller). */
@@ -86,7 +73,7 @@ button,.panel,.side-card,.platform-pill,.topbar,.link-input-box,.job-item,.side-
 html { width:100%; max-width:100%; }
 body { width:100%; max-width:100%; overflow-x:clip; }
 .app-shell, .content-grid, .primary-column, .side-column, .panel, .side-card, .job-information, .job-item { min-width:0; max-width:100%; }
-.link-input-box input, .field select, .mf-access-panel input { font-size:16px; }
+.link-input-box input, .field select { font-size:16px; }
 input, select, button { touch-action:manipulation; }
 @media (max-width:680px) {
   .app-shell { width:100%; padding-inline:max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); }
@@ -185,3 +172,7 @@ input, select, button { touch-action:manipulation; }
 .job-warning[hidden] { display:none!important; }
 .job-warning::before { content:"ℹ "; color:var(--a); font-weight:800; }
 @media (max-width:680px) { .job-warning { font-size:12px; padding:12px; } }
+
+/* Source fallback is a link, styled to match the other secondary actions. */
+#mf-open-source{display:inline-flex;text-decoration:none;align-items:center}
+#mf-open-source[hidden]{display:none}

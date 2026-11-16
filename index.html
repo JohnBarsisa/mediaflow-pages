@@ -10,9 +10,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>(function(){try{let m=localStorage.getItem('mediaflow_mode')||localStorage.getItem('mediaflow_theme'),p=localStorage.getItem('mediaflow_palette');if(['light','dark'].includes(m))document.documentElement.dataset.mode=m;if(['wave','aurora','violet','lagoon','coral','sage','sunset','graphite'].includes(p))document.documentElement.dataset.palette=p}catch(e){}})()</script>
-  <link rel="stylesheet" href="./style.css?v=1.5.0">
-  <script src="./config.js?v=1.4.0"></script>
-  <script defer src="./app.js?v=1.5.0"></script>
+  <link rel="stylesheet" href="./style.css?v=1.6.0">
+  <script src="./config.js?v=1.6.0"></script>
+  <script defer src="./app.js?v=1.6.0"></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
@@ -27,7 +27,7 @@
         <button type="button" class="nav-link" data-view="activity" aria-label="My downloads"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>My downloads</span><span id="activity-count" class="nav-count" hidden>0</span></button>
       </nav>
       <div class="top-actions">
-        <span class="workspace-chip"><span class="live-signal"></span> Private beta</span><button id="mf-lock" type="button" class="appearance-trigger" aria-label="Lock private beta session" title="Lock session">🔒 <span class="appearance-trigger-label">Lock</span></button>
+        <span class="workspace-chip"><span class="live-signal"></span> No sign-in needed</span>
         <div class="appearance-anchor">
           <button id="appearance-trigger" type="button" class="appearance-trigger" aria-label="Open appearance settings" aria-expanded="false" aria-controls="appearance-popover"><span class="appearance-trigger-disc"></span><span class="appearance-trigger-label">Appearance</span><svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
           <section id="appearance-popover" class="appearance-popover" aria-label="Appearance options" hidden>
@@ -82,12 +82,12 @@
                 <button id="inspect-btn" class="primary-button inspect-button" type="submit"><span class="button-label">Get formats</span><svg class="arrow-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               </form>
               <p id="paste-help" class="mf-inline-tip" hidden role="status" aria-live="polite"></p>
-              <div class="input-footer"><span id="detected-platform"><span class="status-dot"></span> Ready when you are</span><span>Single videos &amp; audio posts</span></div>
+              <div class="input-footer"><span id="detected-platform"><span class="status-dot"></span> Ready when you are</span><span>Paste to find formats automatically</span></div>
               <div id="inspect-loading" class="inspect-loading" hidden role="status" aria-live="polite"><div class="loading-spinner"></div><div><strong>Finding available formats</strong><span>Checking your link and its media streams…</span></div><div class="shimmer-line"></div></div>
               <section id="mf-media-error" class="mf-help-card" hidden role="alert">
                 <strong id="mf-media-error-title">This link needs attention</strong>
                 <p id="mf-media-error-message"></p>
-                <button type="button" class="mf-help-link" data-open-personal>Explore Personal Mode ↗</button>
+                <a id="mf-open-source" class="mf-help-link" target="_blank" rel="noopener noreferrer" hidden>Open original post ↗</a>
               </section>
             </section>
             <section id="result-panel" class="panel result-panel" hidden aria-labelledby="step-two-heading">
@@ -104,7 +104,7 @@
           </div>
           <aside class="side-column">
             <section class="side-card personalise-card" aria-labelledby="personalise-title"><div class="side-heading"><span class="small-asterisk">✳</span><span class="section-kicker">YOUR SPACE, YOUR RULES</span></div><h3 id="personalise-title">A look that feels <em>like you.</em></h3><p>Switch the mood. Change the colours. The whole workspace moves with you.</p><div class="side-mode-row" role="group" aria-label="Appearance mode"><button class="side-mode" data-set-mode="light" type="button">☀ &nbsp; Light</button><button class="side-mode" data-set-mode="dark" type="button">☾ &nbsp; Dark</button></div><div class="swatch-heading">Choose a palette <span id="side-palette-name">Wave</span></div><div id="side-palette-picker" class="side-palette-picker" role="group" aria-label="Choose colour palette"><button class="side-swatch" data-set-palette="wave" aria-label="Wave theme" title="Wave" type="button"><span class="wave-orb"></span></button><button class="side-swatch" data-set-palette="aurora" aria-label="Aurora theme" title="Aurora" type="button"><span class="aurora-orb"></span></button><button class="side-swatch" data-set-palette="violet" aria-label="Violet theme" title="Violet" type="button"><span class="violet-orb"></span></button><button class="side-swatch" data-set-palette="lagoon" aria-label="Lagoon theme" title="Lagoon" type="button"><span class="lagoon-orb"></span></button><button class="side-swatch" data-set-palette="coral" aria-label="Coral theme" title="Coral" type="button"><span class="coral-orb"></span></button><button class="side-swatch" data-set-palette="sage" aria-label="Sage theme" title="Sage" type="button"><span class="sage-orb"></span></button><button class="side-swatch" data-set-palette="sunset" aria-label="Sunset theme" title="Sunset" type="button"><span class="sunset-orb"></span></button><button class="side-swatch" data-set-palette="graphite" aria-label="Graphite theme" title="Graphite" type="button"><span class="graphite-orb"></span></button></div><div class="theme-caption"><span class="tiny-spark">✧</span> 8 palettes · 2 modes · yours to explore</div></section>
-            <section class="side-card steps-card"><div class="side-heading"><span class="side-icon">↗</span><span class="section-kicker">THREE EASY STEPS</span></div><h3>Simple from start to save.</h3><div class="how-step"><span>01</span><div><b>Paste a URL</b><p>Use a supported public video or audio link.</p></div></div><div class="how-step"><span>02</span><div><b>Pick your format</b><p>Select the actual stream, quality, and output format.</p></div></div><div class="how-step"><span>03</span><div><b>Download &amp; enjoy</b><p>Watch progress live, then save the file.</p></div></div></section>
+            <section class="side-card steps-card"><div class="side-heading"><span class="side-icon">↗</span><span class="section-kicker">THREE EASY STEPS</span></div><h3>Simple from start to save.</h3><div class="how-step"><span>01</span><div><b>Paste a URL</b><p>Paste a public video or audio link to load its available formats.</p></div></div><div class="how-step"><span>02</span><div><b>Pick your format</b><p>Select the actual stream, quality, and output format.</p></div></div><div class="how-step"><span>03</span><div><b>Download &amp; enjoy</b><p>Watch progress live, then save the file.</p></div></div></section>
             <section class="side-card formats-card"><div class="formats-icon">♫</div><h3>One link. More freedom.</h3><p>From crystal-clear video to audio-only files, the right format is just a click away.</p><div class="format-badges"><span>MP4</span><span>WebM</span><span>MKV</span><span>MP3</span><span>M4A</span><span>WAV</span><span>Opus</span><span>FLAC</span></div></section>
             <section class="side-card access-mode-card" aria-label="Media access options">
               <div class="side-heading"><span class="side-icon">◉</span><span class="section-kicker">HOW ACCESS WORKS</span></div>
@@ -117,23 +117,10 @@
           </aside>
         </div>
       </section>
-      <section id="activity-view" class="page-view activity-view" hidden><div class="activity-header"><div class="eyebrow"><span class="eyebrow-glyph">✦</span> YOUR WORKSPACE / ACTIVITY</div><h1>Every download, <em>in one place.</em></h1><p>See what's in progress, what's finished, and what needs your attention. Files expire one hour after completion.</p></div><div class="panel activity-panel"><div class="panel-heading"><div class="panel-heading-left"><span class="step-index">↳</span><div><div class="section-kicker">DOWNLOAD ACTIVITY</div><h2>All your files</h2></div></div><button id="new-download" class="outline-button" type="button">+ New download</button></div><div id="all-jobs" class="jobs-list"></div></div></section>
+      <section id="activity-view" class="page-view activity-view" hidden><div class="activity-header"><div class="eyebrow"><span class="eyebrow-glyph">✦</span> YOUR WORKSPACE / ACTIVITY</div><h1>Every download, <em>in one place.</em></h1><p>See what's in progress, what's finished, and what needs your attention. Guest history stays in this tab. Files expire one hour after completion.</p></div><div class="panel activity-panel"><div class="panel-heading"><div class="panel-heading-left"><span class="step-index">↳</span><div><div class="section-kicker">DOWNLOAD ACTIVITY</div><h2>All your files</h2></div></div><button id="new-download" class="outline-button" type="button">+ New download</button></div><div id="all-jobs" class="jobs-list"></div></div></section>
     </main>
     <footer class="footer"><span>© <span id="year"></span> <strong>MediaFlow</strong> · Made for the way you move.</span><span>Authorised media only <span class="footer-dot">·</span> v1.0 Beta</span></footer>
   </div>
-  <section id="mf-access-gate" class="mf-access-gate" aria-label="Enter MediaFlow private beta" hidden>
-    <form id="mf-access-form" class="mf-access-panel">
-      <div class="mf-access-mark">▶</div>
-      <span class="section-kicker">PRIVATE BETA</span>
-      <h2>Welcome to MediaFlow.</h2>
-      <p>Enter the invitation code you set on your backend. Your code stays in this browser tab and is never included in the published website files.</p>
-      <label for="mf-access-input">Your beta access code</label>
-      <input id="mf-access-input" type="password" autocomplete="off" placeholder="Paste your access code" required minlength="1" />
-      <div id="mf-access-error" class="mf-access-error" role="alert"></div>
-      <button type="submit" id="mf-access-submit" class="primary-button">Unlock MediaFlow →</button>
-      <small>Access is limited to people you invite. Use only permitted media.</small>
-    </form>
-  </section>
   <dialog id="mf-personal-dialog" class="mf-personal-dialog" aria-labelledby="mf-personal-title">
     <div class="mf-dialog-heading"><div><span class="section-kicker">MEDIAFLOW · PRIVATE ACCESS</span><h2 id="mf-personal-title">Use your own PC.</h2></div><button id="mf-personal-close" class="mf-close" type="button" aria-label="Close Personal Mode help">×</button></div>
     <p>Some public posts return no media data on cloud servers. Personal Mode runs on your Windows PC using your own authorised browser session. Your login cookies stay on that PC.</p>

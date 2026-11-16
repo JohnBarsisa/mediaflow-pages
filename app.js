@@ -3,7 +3,7 @@
   const $ = (id) => document.getElementById(id);
   const root = document.documentElement;
   const API_BASE = String(window.MEDIAFLOW_API_BASE || '').replace(/\/$/, '');
-  const PRIVATE_BETA = Boolean(window.MEDIAFLOW_PRIVATE_BETA);
+  const guestMode = Boolean(window.MEDIAFLOW_GUEST_MODE);
   const localMode = Boolean(window.MEDIAFLOW_IS_LOCAL);
   const accessModeInfo = document.getElementById('mf-access-mode-info');
   if (accessModeInfo && localMode) {
@@ -42,17 +42,17 @@
     try { localStorage.setItem('mf_private_pc_url', new URL(url).origin); } catch {}
     window.location.assign(url);
   });
-  const keyName = 'mediaflow_private_key';
-  let accessKey = '';
-  try { accessKey = sessionStorage.getItem(keyName) || ''; } catch {}
-  const accessGate = document.getElementById('mf-access-gate');
-  function showAccessGate(message = '') {
-    if (!PRIVATE_BETA) return;
-    accessGate.hidden = false;
-    document.getElementById('mf-access-error').textContent = message;
-    document.getElementById('mf-access-input').focus();
+  // This randomly generated browser identifier is only for partitioning guest jobs.
+  // It is never put in a URL or shared with other sites.
+  const guestKey = 'mediaflow_guest_v1';
+  let guestToken = '';
+  if (guestMode && window.crypto?.getRandomValues) {
+    try { guestToken = sessionStorage.getItem(guestKey) || ''; } catch {}
+    if (!/^[a-f0-9]{64}$/.test(guestToken)) {
+      guestToken = Array.from(crypto.getRandomValues(new Uint8Array(32)), n => n.toString(16).padStart(2, '0')).join('');
+      try { sessionStorage.setItem(guestKey, guestToken); } catch {}
+    }
   }
-  function hideAccessGate() { accessGate.hidden = true; }
 
   const state = { inspectedUrl: null, media: null, mode: 'video', jobs: [], view: 'download', toastTimer: null, polling: false, analyzing: false, lastInteraction: Date.now(), lastPoll: 0 };
   ['click', 'input', 'submit', 'touchstart'].forEach(type =>
@@ -95,39 +95,22 @@
   $('toast-close').addEventListener('click', () => { $('toast').hidden = true; });
   async function api(url, opts = {}) {
     let response;
-    try { response = await fetch(API_BASE + url, { ...opts, headers: { 'Content-Type': 'application/json', ...(accessKey ? { 'X-MediaFlow-Key': accessKey } : {}), ...(opts.headers || {}) } }); }
-    catch { throw new Error('Cannot connect to the MediaFlow server. Is it running?'); }
+    if (guestMode && !guestToken) throw new Error('Open MediaFlow over HTTPS to start a guest download.');
+    try { response = await fetch(API_BASE + url, { ...opts, cache: 'no-store', headers: {
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(guestToken ? { 'X-MediaFlow-Guest': guestToken } : {}),
+      ...(opts.headers || {})
+    } }); }
+    catch { throw new Error('Cannot connect to MediaFlow right now. Please try again.'); }
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      if (response.status === 401 && PRIVATE_BETA) showAccessGate('Your access code was not accepted. Try again.');
-      throw new Error(typeof result.detail === 'string' ? result.detail : `Request failed (${response.status})`);
+      const detail = result.detail;
+      const error = new Error(typeof detail === 'string' ? detail :
+        (detail?.message || `Request failed (${response.status})`));
+      error.code = detail?.code;
+      throw error;
     }
     return result;
-  }
-  const accessForm = document.getElementById('mf-access-form');
-  accessForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const candidate = document.getElementById('mf-access-input').value.trim();
-    if (!candidate) return;
-    accessKey = candidate;
-    const btn = document.getElementById('mf-access-submit');
-    btn.disabled = true; btn.textContent = 'Connecting…';
-    try {
-      await api('/api/session');
-      try { sessionStorage.setItem(keyName, candidate); } catch {}
-      document.getElementById('mf-access-input').value = '';
-      hideAccessGate(); await refreshJobs();
-    } catch (e) { document.getElementById('mf-access-error').textContent = e.message; }
-    finally { btn.disabled = false; btn.textContent = 'Unlock MediaFlow →'; }
-  });
-  document.getElementById('mf-lock').addEventListener('click', () => {
-    accessKey = ''; try { sessionStorage.removeItem(keyName); } catch {}
-    if (PRIVATE_BETA) showAccessGate('Session locked. Enter your access code again.');
-    else toast('On localhost, enable MEDIAFLOW_REQUIRE_AUTH=1 to use the private gate.');
-  });
-  if (PRIVATE_BETA) {
-    showAccessGate();
-    if (accessKey) api('/api/session').then(() => { hideAccessGate(); refreshJobs(); }).catch(() => showAccessGate('Please enter a valid access code.'));
   }
   function busy(button, yes, label) {
     if (yes) {
@@ -217,6 +200,7 @@
       if (!content?.trim()) throw new Error('Clipboard is empty');
       target.value = content.trim();
       target.dispatchEvent(new Event('input', { bubbles:true }));
+      if (detectPlatform(target.value)) schedulePaste();
       hint.hidden = true;
       target.focus();
     } catch {
@@ -229,7 +213,22 @@
       target.focus();
     }
   });
+  let pasteTimer;
+  function schedulePaste() {
+    clearTimeout(pasteTimer);
+    // Let native paste update the value first. Typing alone never starts a request.
+    pasteTimer = setTimeout(() => {
+      if (detectPlatform($('media-url').value.trim())) {
+        if (state.analyzing) pendingPaste = $('media-url').value.trim();
+        else $('inspect-form').requestSubmit();
+      }
+    }, 250);
+  }
+  let pendingPaste = null;
+  $('media-url').addEventListener('paste', schedulePaste);
   $('media-url').addEventListener('input', () => {
+    if (state.analyzing) inspectionId++;
+    pendingPaste = null;
     if ($('media-url').value.trim()) $('paste-help').hidden = true;
     $('mf-media-error').hidden = true;
     const name = detectPlatform($('media-url').value.trim());
@@ -243,8 +242,10 @@
   let inspectionId = 0;
   $('inspect-form').addEventListener('submit', async (event) => {
     event.preventDefault();
+    clearTimeout(pasteTimer);
     if (state.analyzing) return;
     const url = $('media-url').value.trim();
+    if (url === state.inspectedUrl) return;
     if (!url || !detectPlatform(url)) {toast('Use a public HTTPS link from one of the supported platforms.');return;}
     resetPreview();const turn = ++inspectionId;
     state.analyzing = true;busy($('inspect-btn'),true,'Finding formats…');$('inspect-loading').hidden = false;
@@ -253,15 +254,25 @@
       if (turn !== inspectionId || $('media-url').value.trim() !== url) return;
       state.media=media;state.inspectedUrl=url;showPreview(media);
     } catch(err) {
-      const message = String(err.message || 'Unable to inspect this link.');
-      $('mf-media-error-title').textContent = /Instagram returned no media data/i.test(message)
-        ? 'Instagram did not send media data' : /bot verification/i.test(message)
-        ? 'This platform requested verification' : 'This link needs attention';
-      $('mf-media-error-message').textContent = message;
+      if (turn !== inspectionId || $('media-url').value.trim() !== url) return;
+      const message = String(err.message || 'Unable to check this link.');
+      const blocked = err.code === 'cloud_unavailable' || /bot verification|didn’t allow MediaFlow|HTTP 403/i.test(message);
+      $('mf-media-error-title').textContent = blocked ? 'Not available for download here' : 'Couldn’t load formats';
+      $('mf-media-error-message').textContent = blocked
+        ? 'Open the original post to check access, or try another link. If you own the media, use the platform’s download or export option.'
+        : message;
+      const original = $('mf-open-source');
+      original.href = url;
+      original.hidden = !blocked;
       $('mf-media-error').hidden = false;
-      toast('Unable to inspect this link. See the explanation below.', 6000);
     }
-    finally {state.analyzing=false;busy($('inspect-btn'),false);$('inspect-loading').hidden=true;}
+    finally {
+      state.analyzing=false;busy($('inspect-btn'),false);$('inspect-loading').hidden=true;
+      if (pendingPaste && pendingPaste === $('media-url').value.trim()) {
+        pendingPaste = null;
+        $('inspect-form').requestSubmit();
+      }
+    }
   });
   function streamLabel(item,kind) {
     const parts=[];
@@ -321,7 +332,10 @@
     const button=$('download-btn');busy(button,true,'Adding to queue…');
     try {
       const payload={url:state.inspectedUrl,inspect_id:state.media.inspect_id,authorized:true,mode:state.mode,video_quality:$('video-quality').value,video_format:$('video-format').value,video_source_id:$('video-source').value,audio_source_id:$('audio-source').value,audio_format:$('audio-format').value,audio_bitrate:Number($('audio-bitrate').value)};
-      await api('/api/jobs',{method:'POST',body:JSON.stringify(payload)});
+      const job = await api('/api/jobs',{method:'POST',body:JSON.stringify(payload)});
+      state.jobs = [job,...state.jobs.filter(item=>item.id!==job.id)];
+      renderJobs();
+      try { sessionStorage.setItem('mediaflow_has_jobs', '1'); } catch {}
       toast('Download queued! Follow its live progress below.');await refreshJobs();
       $('recent-heading').scrollIntoView({behavior:motion,block:'center'});
     } catch(err) {toast(err.message,6500);}
@@ -365,11 +379,11 @@
       action.href=API_BASE + job.download_url;
       const ext=typeof job.file_extension==='string' && /^\.[a-z0-9]{1,5}$/.test(job.file_extension) ? job.file_extension.toUpperCase() : '';
       action.textContent=ext ? `Save ${ext} ↓` : 'Save file ↓';
-      action.setAttribute('download','');action.setAttribute('aria-label',`Save ${job.title||'media'} ${ext}`);
+      action.setAttribute('download','');action.referrerPolicy='no-referrer';action.setAttribute('aria-label',`Save ${job.title||'media'} ${ext}`);
     } else if(active) {
       if(!action||action.tagName!=='BUTTON') {holder.replaceChildren();action=document.createElement('button');action.type='button';action.className='job-action cancel';holder.append(action);}
       action.dataset.cancel=job.id;action.textContent='Cancel';
-    } else if(job.status === 'error' && /account|sign-in|instagram|bot verification|cloud server|private|login|cookies/i.test(job.error || '')) {
+    } else if(localMode && job.status === 'error' && /account|sign-in|instagram|cloud server|private|login|cookies/i.test(job.error || '')) {
       if (!action || action.tagName !== 'BUTTON' || !action.hasAttribute('data-open-personal-job')) {
         holder.replaceChildren();
         action=document.createElement('button');action.type='button';action.className='job-action personal';action.setAttribute('data-open-personal-job','');holder.append(action);
@@ -426,12 +440,14 @@
     try {await api(`/api/jobs/${encodeURIComponent(button.dataset.cancel)}/cancel`,{method:'POST'});await refreshJobs();toast('Download canceled.');}
     catch(err) {toast(err.message);button.disabled=false;}
   });
-  renderJobs();if (!PRIVATE_BETA) refreshJobs();
+  renderJobs();
+  if (!guestMode || sessionStorageSafe('mediaflow_has_jobs')) refreshJobs();
+  function sessionStorageSafe(key) { try { return sessionStorage.getItem(key); } catch { return null; } }
   // Render Free: prevent idle browser tabs from continuously waking the server.
   // Active download jobs receive frequent progress updates; idle pages stop
   // polling after three minutes until the user interacts with MediaFlow again.
   window.setInterval(()=>{
-    if(document.visibilityState!=='visible' || (PRIVATE_BETA && !accessGate.hidden)) return;
+    if(document.visibilityState!=='visible' || (guestMode && !state.jobs.length && !sessionStorageSafe('mediaflow_has_jobs'))) return;
     const active=state.jobs.some(job=>['queued','downloading','processing'].includes(job.status));
     const sinceInteraction=Date.now()-state.lastInteraction;
     if(!active && sinceInteraction>180000) return;
@@ -441,6 +457,6 @@
     refreshJobs();
   },2500);
   document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible') {state.lastInteraction=Date.now();refreshJobs();}
+    if(document.visibilityState==='visible' && (!guestMode || state.jobs.length || sessionStorageSafe('mediaflow_has_jobs'))) {state.lastInteraction=Date.now();refreshJobs();}
   });
 })();
