@@ -54,7 +54,7 @@
     }
   }
 
-  const state = { inspectedUrl: null, media: null, mode: 'video', jobs: [], view: 'download', toastTimer: null, polling: false, analyzing: false, lastInteraction: Date.now(), lastPoll: 0 };
+  const state = { inspectedUrl: null, media: null, mode: 'video', jobs: [], view: 'download', toastTimer: null, polling: false, lastInteraction: Date.now(), lastPoll: 0 };
   ['click', 'input', 'submit', 'touchstart'].forEach(type =>
     document.addEventListener(type, () => { state.lastInteraction=Date.now(); }, { passive:true })
   );
@@ -108,8 +108,7 @@
     const target = $('media-url');
     target.value = sampleUrl;
     target.dispatchEvent(new Event('input', {bubbles: true}));
-    if (state.analyzing) pendingPaste = sampleUrl;
-    else $('inspect-form').requestSubmit();
+    $('inspect-form').requestSubmit();
   }
   $('try-sample').addEventListener('click', loadSample);
   $('try-sample-fallback').addEventListener('click', loadSample);
@@ -138,13 +137,20 @@
       ...(guestToken ? { 'X-MediaFlow-Guest': guestToken } : {}),
       ...(opts.headers || {})
     } }); }
-    catch { throw new Error('Cannot connect to MediaFlow right now. Please try again.'); }
+    catch (err) {
+      if (opts.signal?.aborted) throw err;
+      const error = new Error('Cannot connect to MediaFlow right now. Check your connection or try Get formats again.');
+      error.code = 'connection_unavailable';
+      throw error;
+    }
     const result = await response.json().catch(() => ({}));
+    if (opts.signal?.aborted) throw opts.signal.reason;
     if (!response.ok) {
       const detail = result.detail;
       const error = new Error(typeof detail === 'string' ? detail :
         (detail?.message || `Request failed (${response.status})`));
       error.code = detail?.code;
+      error.status = response.status;
       throw error;
     }
     return result;
@@ -228,19 +234,26 @@
   $('new-download').addEventListener('click', () => {setView('download'); $('media-url').focus();});
   $('year').textContent = String(new Date().getFullYear());
   const mobileClipboard = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+  let inputVersion = 0;
+  let clipboardVersion = 0;
   $('paste-btn').addEventListener('click', async () => {
     const target = $('media-url');
     const hint = $('paste-help');
+    const version = inputVersion;
+    const attempt = ++clipboardVersion;
+    const stillCurrent = () => version === inputVersion && attempt === clipboardVersion;
     try {
       if (!navigator.clipboard?.readText) throw new Error('Clipboard API unavailable');
       const content = await navigator.clipboard.readText();
+      if (!stillCurrent()) return;
       if (!content?.trim()) throw new Error('Clipboard is empty');
       target.value = content.trim();
       target.dispatchEvent(new Event('input', { bubbles:true }));
-      if (detectPlatform(target.value)) schedulePaste();
+      if (detectPlatform(target.value)) $('inspect-form').requestSubmit();
       hint.hidden = true;
       target.focus();
     } catch {
+      if (!stillCurrent()) return;
       // In-app iOS browsers often deny clipboard.readText(). Browsers do not
       // permit scripted pasting without permission. Native long-press remains safe.
       hint.textContent = mobileClipboard
@@ -251,54 +264,77 @@
     }
   });
   let pasteTimer;
-  function schedulePaste() {
+  let activeInspection = null;
+  $('media-url').addEventListener('paste', () => {
     clearTimeout(pasteTimer);
-    // Let native paste update the value first. Typing alone never starts a request.
+    // The paste event precedes the native input update.
     pasteTimer = setTimeout(() => {
-      if (detectPlatform($('media-url').value.trim())) {
-        if (state.analyzing) pendingPaste = $('media-url').value.trim();
-        else $('inspect-form').requestSubmit();
-      }
-    }, 250);
+      if (detectPlatform($('media-url').value.trim())) $('inspect-form').requestSubmit();
+    }, 0);
+  });
+  function finishInspection({cancel = false} = {}) {
+    if (!activeInspection) return;
+    const {controller, slowTimer, timeout} = activeInspection;
+    activeInspection = null;
+    clearTimeout(slowTimer);
+    clearTimeout(timeout);
+    if (cancel) controller.abort();
+    busy($('inspect-btn'), false);
+    $('inspect-loading').hidden = true;
   }
-  let pendingPaste = null;
-  $('media-url').addEventListener('paste', schedulePaste);
   $('media-url').addEventListener('input', () => {
-    if (state.analyzing) inspectionId++;
-    pendingPaste = null;
-    if ($('media-url').value.trim()) $('paste-help').hidden = true;
+    inputVersion++;
+    const value = $('media-url').value.trim();
+    if (activeInspection && activeInspection.url !== value) finishInspection({cancel:true});
+    if (value) $('paste-help').hidden = true;
     $('mf-media-error').hidden = true;
-    const name = detectPlatform($('media-url').value.trim());
+    const name = detectPlatform(value);
     const label = $('detected-platform'); label.replaceChildren();
     const dot = document.createElement('span'); dot.className = name ? 'green-dot' : 'status-dot';
     label.append(dot, document.createTextNode(name ? `${name} link detected` : 'Ready when you are'));
-    if (state.inspectedUrl && $('media-url').value.trim() !== state.inspectedUrl) resetPreview();
+    if (state.inspectedUrl && value !== state.inspectedUrl) resetPreview();
   });
   function resetPreview() { state.inspectedUrl = null;state.media = null;currentDownload = null;$('download-status').textContent='';$('result-panel').hidden = true;$('mf-media-error').hidden=true;updateDownloadButton(); }
-  $('reset-btn').addEventListener('click', () => {resetPreview();$('media-url').focus();});
-  let inspectionId = 0;
+  $('reset-btn').addEventListener('click', () => { const field = $('media-url');field.focus();field.select(); });
   $('inspect-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     clearTimeout(pasteTimer);
-    if (state.analyzing) return;
     const url = $('media-url').value.trim();
-    if (url === state.inspectedUrl) return;
-    if (!url || !detectPlatform(url)) {toast('Use a public HTTPS link from one of the supported platforms.');return;}
-    resetPreview();const turn = ++inspectionId;
-    state.analyzing = true;busy($('inspect-btn'),true,'Finding formats…');$('inspect-loading').hidden = false;
+    if (url === state.inspectedUrl || url === activeInspection?.url) return;
+    const platform = detectPlatform(url);
+    if (!platform) {toast('Use a public HTTPS link from one of the supported platforms.');return;}
+    finishInspection({cancel:true});
+    resetPreview();
+    const controller = new AbortController();
+    const loadingMessage = $('inspect-loading-message');
+    loadingMessage.textContent = 'Checking your link and its media streams…';
+    const lookup = activeInspection = {url, controller, timedOut:false,
+      slowTimer:setTimeout(() => {
+        loadingMessage.textContent = 'Still waiting for the service or source. A first request can take longer.';
+      }, 8000),
+      timeout:setTimeout(() => { lookup.timedOut = true;controller.abort(); }, 80000),
+    };
+    busy($('inspect-btn'),true,'Finding formats…');
+    $('inspect-loading').hidden = false;
     try {
-      const media = await api('/api/inspect',{method:'POST',body:JSON.stringify({url})});
-      if (turn !== inspectionId || $('media-url').value.trim() !== url) return;
+      const media = await api('/api/inspect',{method:'POST',body:JSON.stringify({url}),signal:controller.signal});
+      if (activeInspection !== lookup) return;
+      if (!media?.inspect_id || (!media.has_video && !media.has_audio)) throw new Error('No downloadable formats were returned.');
       state.media=media;state.inspectedUrl=url;showPreview(media);
     } catch(err) {
-      if (turn !== inspectionId || $('media-url').value.trim() !== url) return;
-      const message = String(err.message || 'Unable to check this link.');
-      const blocked = err.code === 'cloud_unavailable'
-        || /bot verification|didn’t allow MediaFlow|HTTP 403|returned no media data|requires account sign-in|this media is private|uses DRM protection|no media streams|platform may have changed or blocked/i.test(message);
-      const platform = detectPlatform(url);
+      if (activeInspection !== lookup) return;
+      const temporary = lookup.timedOut || err.code === 'connection_unavailable' || err.status >= 500;
+      const limited = err.status === 429;
+      const message = lookup.timedOut ? 'This format check took too long. Select Get formats to retry.' :
+        temporary && err.status >= 500 ? 'The download service is temporarily unavailable. Wait a moment, then select Get formats.' :
+        String(err.message || 'Unable to check this link.');
+      const blocked = !temporary && !limited && platform !== 'Direct media file' &&
+        (err.code === 'cloud_unavailable'
+        || /bot verification|didn’t allow MediaFlow|HTTP 403|returned no media data|requires account sign-in|this media is private|uses DRM protection|no media streams|platform may have changed or blocked/i.test(message));
       const help = blocked && Object.hasOwn(sourceHelp, platform) ? sourceHelp[platform] : null;
       $('mf-media-error-title').textContent = help ? `${platform} download unavailable in MediaFlow`
-        : blocked ? 'Not available for download here' : 'Couldn’t load formats';
+        : blocked ? 'Not available for download here'
+        : limited ? 'Too many format checks' : temporary ? 'Format check interrupted' : 'Couldn’t load formats';
       $('mf-media-error-message').textContent = help?.message || message;
       const original = $('mf-open-source');
       original.href = url;
@@ -315,13 +351,7 @@
       $('try-sample-fallback').hidden = !blocked;
       $('mf-media-error').hidden = false;
     }
-    finally {
-      state.analyzing=false;busy($('inspect-btn'),false);$('inspect-loading').hidden=true;
-      if (pendingPaste && pendingPaste === $('media-url').value.trim()) {
-        pendingPaste = null;
-        $('inspect-form').requestSubmit();
-      }
-    }
+    finally { if (activeInspection === lookup) finishInspection(); }
   });
   function streamLabel(item,kind) {
     const parts=[];
@@ -351,7 +381,6 @@
     $('stream-count').textContent=direct ? `· ${media.direct_format} · ${formatSpeed(media.bytes).replace('/s', '')}`
       : `· ${vf.length} video / ${af.length} audio streams`;
     $('result-panel').hidden=false;chooseMode(media.has_video?'video':'audio');
-    $('download-btn').querySelector('.button-label').textContent=direct ? `Download ${media.direct_format}` : 'Download';
   }
   function chooseMode(mode) {
     if (state.media && ((mode==='video'&&!state.media.has_video)||(mode==='audio'&&!state.media.has_audio))) return;
@@ -375,9 +404,11 @@
   }
   ['audio-format','audio-bitrate','video-source','video-format','video-quality','audio-source'].forEach(id=>$(id).addEventListener('change',updateNotice));
   function updateDownloadButton() {
-    if($('download-btn').dataset.busy==='true') return;
+    const button = $('download-btn');
+    if(button.dataset.busy==='true') return;
+    button.querySelector('.button-label').textContent=state.media?.direct_format ? `Download ${state.media.direct_format}` : 'Download';
     const waiting = currentDownload && autoSaveJobs.has(currentDownload);
-    $('download-btn').disabled=Boolean(waiting||!state.inspectedUrl||(state.media&&((state.mode==='video'&&!state.media.has_video)||(state.mode==='audio'&&!state.media.has_audio))));
+    button.disabled=Boolean(waiting||!state.inspectedUrl||(state.media&&((state.mode==='video'&&!state.media.has_video)||(state.mode==='audio'&&!state.media.has_audio))));
   }
   $('download-btn').addEventListener('click',async()=>{
     const button=$('download-btn');

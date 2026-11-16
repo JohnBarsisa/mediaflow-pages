@@ -12,7 +12,7 @@
   <script>(function(){try{let m=localStorage.getItem('mediaflow_mode')||localStorage.getItem('mediaflow_theme'),p=localStorage.getItem('mediaflow_palette');if(['light','dark'].includes(m))document.documentElement.dataset.mode=m;if(['wave','aurora','violet','lagoon','coral','sage','sunset','graphite'].includes(p))document.documentElement.dataset.palette=p}catch(e){}})()</script>
   <link rel="stylesheet" href="./style.css?v=1.7.0">
   <script src="./config.js?v=1.6.1"></script>
-  <script defer src="./app.js?v=1.7.0"></script>
+  <script defer src="./app.js?v=1.7.1"></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
@@ -84,7 +84,7 @@
               <p id="paste-help" class="mf-inline-tip" hidden role="status" aria-live="polite"></p>
               <div class="input-footer"><span id="detected-platform"><span class="status-dot"></span> Ready when you are</span><span>Paste to find formats automatically</span><button type="button" id="try-sample" class="text-button">Try a real sample</button></div>
               <p class="mf-inline-tip">Direct media links from supported hosts save as files. Social posts only download when the source makes a file available to MediaFlow.</p>
-              <div id="inspect-loading" class="inspect-loading" hidden role="status" aria-live="polite"><div class="loading-spinner"></div><div><strong>Finding available formats</strong><span>Checking your link and its media streams…</span></div><div class="shimmer-line"></div></div>
+              <div id="inspect-loading" class="inspect-loading" hidden role="status" aria-live="polite"><div class="loading-spinner"></div><div><strong>Finding available formats</strong><span id="inspect-loading-message">Checking your link and its media streams…</span></div><div class="shimmer-line"></div></div>
               <section id="mf-media-error" class="mf-help-card" hidden role="alert">
                 <strong id="mf-media-error-title">This link needs attention</strong>
                 <p id="mf-media-error-message"></p>

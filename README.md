@@ -4,4 +4,4 @@
 
 Only the browser files are published here. Backend source remains private. Guest downloads are isolated per browser tab and use expiring file links.
 
-Source snapshot: private MediaFlow commit `77e161c6709adfa921b70b25685cc320f1da72f9`.
+Frontend release: **1.7.1** (private source commit `462d2bb7ffbe86e923d8c68541f3a5ffabc519a4`).
