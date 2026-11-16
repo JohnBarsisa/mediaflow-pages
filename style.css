@@ -181,3 +181,13 @@ input, select, button { touch-action:manipulation; }
 .source-actions a{display:inline-flex;text-decoration:none}
 .source-actions [hidden],#format-choices[hidden]{display:none}
 .input-footer{flex-wrap:wrap;gap:8px}
+
+/* Show the result directly beneath the link, with format controls available on demand. */
+.inline-result{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.inline-result .preview{margin-bottom:12px}
+.download-format-options{margin:12px 0;color:var(--ink)}
+.download-format-options summary{cursor:pointer;color:var(--ink);font-weight:700;font-size:13px;padding:6px 0}
+.download-format-options .choice-label{margin-top:12px}
+#download-permission{margin-bottom:0}
+.download-status{margin:10px 0 0;color:var(--soft-text);font-size:13px}
+.download-status:empty{display:none}

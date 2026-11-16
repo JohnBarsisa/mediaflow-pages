@@ -59,6 +59,8 @@
     document.addEventListener(type, () => { state.lastInteraction=Date.now(); }, { passive:true })
   );
   const cached = { recent: new Map(), all: new Map() };
+  const autoSaveJobs = new Set();
+  let currentDownload = null;
   const themes = {wave:'Wave',aurora:'Aurora',violet:'Violet',lagoon:'Lagoon',coral:'Coral',sage:'Sage',sunset:'Sunset',graphite:'Graphite'};
   const hosts = [
     ['youtube.com','YouTube'],['youtu.be','YouTube'],['instagram.com','Instagram'],['tiktok.com','TikTok'],
@@ -272,7 +274,7 @@
     label.append(dot, document.createTextNode(name ? `${name} link detected` : 'Ready when you are'));
     if (state.inspectedUrl && $('media-url').value.trim() !== state.inspectedUrl) resetPreview();
   });
-  function resetPreview() { state.inspectedUrl = null;state.media = null;$('result-panel').hidden = true;$('mf-media-error').hidden=true;$('permission').checked = false;updateDownloadButton(); }
+  function resetPreview() { state.inspectedUrl = null;state.media = null;currentDownload = null;$('download-status').textContent='';$('result-panel').hidden = true;$('mf-media-error').hidden=true;updateDownloadButton(); }
   $('reset-btn').addEventListener('click', () => {resetPreview();$('media-url').focus();});
   let inspectionId = 0;
   $('inspect-form').addEventListener('submit', async (event) => {
@@ -349,8 +351,7 @@
     $('stream-count').textContent=direct ? `· ${media.direct_format} · ${formatSpeed(media.bytes).replace('/s', '')}`
       : `· ${vf.length} video / ${af.length} audio streams`;
     $('result-panel').hidden=false;chooseMode(media.has_video?'video':'audio');
-    $('download-btn').querySelector('.button-label').textContent=direct ? `Download original ${media.direct_format}` : 'Start download';
-    $('result-panel').scrollIntoView({behavior:motion,block:'start'});
+    $('download-btn').querySelector('.button-label').textContent=direct ? `Download ${media.direct_format}` : 'Download';
   }
   function chooseMode(mode) {
     if (state.media && ((mode==='video'&&!state.media.has_video)||(mode==='audio'&&!state.media.has_audio))) return;
@@ -373,25 +374,67 @@
       : 'Auto picks the best available stream at or below your chosen resolution. Some conversions need extra processing time.';
   }
   ['audio-format','audio-bitrate','video-source','video-format','video-quality','audio-source'].forEach(id=>$(id).addEventListener('change',updateNotice));
-  $('permission').addEventListener('change',updateDownloadButton);
   function updateDownloadButton() {
     if($('download-btn').dataset.busy==='true') return;
-    $('download-btn').disabled=!state.inspectedUrl||!$('permission').checked||Boolean(state.media&&((state.mode==='video'&&!state.media.has_video)||(state.mode==='audio'&&!state.media.has_audio)));
+    const waiting = currentDownload && autoSaveJobs.has(currentDownload);
+    $('download-btn').disabled=Boolean(waiting||!state.inspectedUrl||(state.media&&((state.mode==='video'&&!state.media.has_video)||(state.mode==='audio'&&!state.media.has_audio))));
   }
   $('download-btn').addEventListener('click',async()=>{
-    if(!state.inspectedUrl||!$('permission').checked) return;
-    const button=$('download-btn');busy(button,true,'Adding to queue…');
+    const button=$('download-btn');
+    if(!state.inspectedUrl||button.disabled) return;
+    busy(button,true,'Starting download…');
     try {
+      // The visible notice beside Download makes this click the permission confirmation.
       const payload={url:state.inspectedUrl,inspect_id:state.media.inspect_id,authorized:true,mode:state.mode,video_quality:$('video-quality').value,video_format:$('video-format').value,video_source_id:$('video-source').value,audio_source_id:$('audio-source').value,audio_format:$('audio-format').value,audio_bitrate:Number($('audio-bitrate').value)};
       const job = await api('/api/jobs',{method:'POST',body:JSON.stringify(payload)});
+      autoSaveJobs.add(job.id);
+      if (state.media?.inspect_id === payload.inspect_id) {
+        currentDownload=job.id;
+        $('download-status').textContent='Preparing your file. The download will start when it’s ready.';
+      }
       state.jobs = [job,...state.jobs.filter(item=>item.id!==job.id)];
       renderJobs();
       try { sessionStorage.setItem('mediaflow_has_jobs', '1'); } catch {}
-      toast('Download queued! Follow its live progress below.');await refreshJobs();
-      $('recent-heading').scrollIntoView({behavior:motion,block:'center'});
+      await refreshJobs();
     } catch(err) {toast(err.message,6500);}
     finally {busy(button,false);updateDownloadButton();}
   });
+  function attachmentUrl(job) {
+    const path = job?.download_url;
+    return job?.status === 'done' && typeof path === 'string'
+      && /^\/api\/jobs\/[a-z0-9-]+\/file(?:\?ticket=[0-9]+\.[a-f0-9]{64})?$/.test(path)
+      ? API_BASE + path : null;
+  }
+  function startReadyDownloads() {
+    if (document.visibilityState !== 'visible') return;
+    for (const job of state.jobs) {
+      if (!autoSaveJobs.has(job.id)) continue;
+      if (job.status === 'error' || job.status === 'canceled') {
+        autoSaveJobs.delete(job.id);
+        const message = job.status === 'error' ? (job.error || 'The download failed. Try again.') : 'Download canceled.';
+        if (job.id === currentDownload) $('download-status').textContent=message;
+        else toast(message, 6500);
+        continue;
+      }
+      const url = attachmentUrl(job);
+      if (!url) continue;
+      autoSaveJobs.delete(job.id);
+      // Render returns an attachment. The iframe keeps any delayed response
+      // or browser error off the main page and cannot run scripts or open tabs.
+      const frame = document.createElement('iframe');
+      frame.hidden = true;
+      frame.setAttribute('aria-hidden','true');
+      frame.setAttribute('sandbox','allow-downloads');
+      frame.referrerPolicy = 'no-referrer';
+      frame.src = url;
+      document.body.append(frame);
+      setTimeout(() => frame.remove(), 120000);
+      const message = 'File ready. If the browser didn’t start saving it, use Save in the queue.';
+      if (job.id === currentDownload) $('download-status').textContent=message;
+      else toast(message, 8500);
+    }
+    updateDownloadButton();
+  }
   const stages={queued:'Waiting for a worker',downloading:'Downloading source',processing:'Merging / converting',done:'File is ready',error:'Download failed',canceled:'Canceled'};
   const statusNames={queued:'Queued',downloading:'Downloading',processing:'Processing',done:'Ready',error:'Failed',canceled:'Canceled'};
   function makeJobNode(job) {
@@ -425,10 +468,11 @@
     node.querySelector('.job-percent').textContent=`${Math.round(pct)}%`;
     const holder=node.querySelector('.job-action-holder');
     let action=holder.firstElementChild;
-    if(job.status==='done' && typeof job.download_url==='string' && /^\/api\/jobs\/[a-z0-9-]+\/file(?:\?ticket=[0-9]+\.[a-f0-9]{64})?$/.test(job.download_url)) {
+    const fileUrl = attachmentUrl(job);
+    if(fileUrl) {
       if(!action || action.tagName!=='A') {holder.replaceChildren();action=document.createElement('a');action.className='job-action';holder.append(action);}
-      action.href=API_BASE + job.download_url;
-      const ext=typeof job.file_extension==='string' && /^\.[a-z0-9]{1,5}$/.test(job.file_extension) ? job.file_extension.toUpperCase() : '';
+      action.href=fileUrl;
+      const ext=typeof job.file_extension==='string' && /^\.[a-z0-9]{1,5}$/.test(job.file_extension) ? job.file_extension.slice(1).toUpperCase() : '';
       action.textContent=ext ? `Save ${ext} ↓` : 'Save file ↓';
       action.setAttribute('download','');action.referrerPolicy='no-referrer';action.setAttribute('aria-label',`Save ${job.title||'media'} ${ext}`);
     } else if(active) {
@@ -466,19 +510,22 @@
     syncJobs($('recent-jobs'),state.jobs.slice(0,3),cached.recent);
     syncJobs($('all-jobs'),state.jobs,cached.all);
     $('activity-count').hidden=state.jobs.length===0;$('activity-count').textContent=String(state.jobs.length);
+    startReadyDownloads();
   }
   async function refreshJobs() {
     if(state.polling)return;state.polling=true;
     try {
+      const before = new Set(state.jobs.map(job=>job.id));
       const current=await api('/api/jobs');
       // Render Free may restart if processing exhausts memory. Keep a visible
       // explanation for jobs lost on restart, instead of silently erasing them.
       const ids=new Set(current.map(job=>job.id));
+      const addedDuringFetch=state.jobs.filter(job=>!before.has(job.id)&&!ids.has(job.id));
       const lost=state.jobs.filter(job=>
-        ['queued','downloading','processing'].includes(job.status) && !ids.has(job.id)
+        before.has(job.id) && ['queued','downloading','processing'].includes(job.status) && !ids.has(job.id)
       ).map(job=>({...job,status:'error',error:'The processing server restarted and interrupted this download. Retry a compatible MP4/H.264 stream or Original format.',progress:job.progress||0}));
       const previousErrors=state.jobs.filter(job=>job.error && job.status==='error' && !ids.has(job.id));
-      const byId=new Map([...current,...previousErrors,...lost].map(job=>[job.id,job]));
+      const byId=new Map([...addedDuringFetch,...current,...previousErrors,...lost].map(job=>[job.id,job]));
       state.jobs=Array.from(byId.values());
       renderJobs();
     }
@@ -508,6 +555,6 @@
     refreshJobs();
   },2500);
   document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible' && (!guestMode || state.jobs.length || sessionStorageSafe('mediaflow_has_jobs'))) {state.lastInteraction=Date.now();refreshJobs();}
+    if(document.visibilityState==='visible' && (!guestMode || state.jobs.length || sessionStorageSafe('mediaflow_has_jobs'))) {state.lastInteraction=Date.now();startReadyDownloads();refreshJobs();}
   });
 })();
