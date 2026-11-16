@@ -1,7 +1,7 @@
 # MediaFlow guest beta
 
-[Open MediaFlow](https://johnbarsisa.github.io/mediaflow-pages/). No invitation code is needed. Paste an individual public link, choose a format, and confirm you have permission to save it. Platform restrictions still apply.
+[Open MediaFlow](https://johnbarsisa.github.io/mediaflow-pages/). No access code is needed. Select **Try a real sample** to download an MP4 sample through the live Render backend. Direct files from the supported MDN media directories and Wikimedia Commons save in their original format. Platforms may decline to provide formats for post URLs, including YouTube watch pages.
 
-This repository publishes only the browser files. The backend stays on Render. Guest job history is isolated by browser tab and completed files use expiring links. Never commit server credentials, account session data, or downloaded media here.
+Only the browser files are published here. Backend source remains private. Guest downloads are isolated per browser tab and use expiring file links.
 
-Source snapshot: private MediaFlow `main` commit `7322e346aae605edcaf6192db2c8ded1ddd89ae0`. GitHub Pages serves this repository’s `main` branch.
+Source snapshot: private MediaFlow commit `77e161c6709adfa921b70b25685cc320f1da72f9`.

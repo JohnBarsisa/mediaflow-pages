@@ -66,16 +66,34 @@
     ['soundcloud.com','SoundCloud'],['vimeo.com','Vimeo'],['dailymotion.com','Dailymotion'],['dai.ly','Dailymotion'],
     ['reddit.com','Reddit'],['redd.it','Reddit'],['v.redd.it','Reddit'],['twitch.tv','Twitch'],['bandcamp.com','Bandcamp'],
   ];
+  const sampleUrl = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+  const directMediaRoots = new Map([
+    ['upload.wikimedia.org', '/wikipedia/commons/'],
+    ['interactive-examples.mdn.mozilla.net', '/media/cc0-videos/'],
+    ['developer.mozilla.org', '/shared-assets/videos/'],
+  ]);
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const motion = reduceMotion ? 'auto' : 'smooth';
   function detectPlatform(url) {
     try {
       const u = new URL(url);
-      if (u.protocol !== 'https:') return null;
+      if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
       const host = u.hostname.toLowerCase();
+      const prefix = directMediaRoots.get(host);
+      if (prefix && !u.search && !u.hash && u.pathname.startsWith(prefix)
+          && /\.(mp4|webm|mp3|m4a|ogg|oga|opus|wav)$/i.test(u.pathname)) return 'Direct media file';
       return hosts.find(([domain]) => host === domain || host.endsWith(`.${domain}`))?.[1] || null;
     } catch { return null; }
   }
+  function loadSample() {
+    const target = $('media-url');
+    target.value = sampleUrl;
+    target.dispatchEvent(new Event('input', {bubbles: true}));
+    if (state.analyzing) pendingPaste = sampleUrl;
+    else $('inspect-form').requestSubmit();
+  }
+  $('try-sample').addEventListener('click', loadSample);
+  $('try-sample-fallback').addEventListener('click', loadSample);
   function formatDuration(s) {
     if (s == null) return '';
     s = Math.floor(s);
@@ -257,13 +275,18 @@
       if (turn !== inspectionId || $('media-url').value.trim() !== url) return;
       const message = String(err.message || 'Unable to check this link.');
       const blocked = err.code === 'cloud_unavailable' || /bot verification|didn’t allow MediaFlow|HTTP 403/i.test(message);
-      $('mf-media-error-title').textContent = blocked ? 'Not available for download here' : 'Couldn’t load formats';
+      const youtube = blocked && detectPlatform(url) === 'YouTube';
+      $('mf-media-error-title').textContent = youtube ? 'YouTube didn’t provide download formats'
+        : blocked ? 'Not available for download here' : 'Couldn’t load formats';
       $('mf-media-error-message').textContent = blocked
-        ? 'Open the original post to check access, or try another link. If you own the media, use the platform’s download or export option.'
+        ? (youtube ? 'This watch link cannot be downloaded here. For your own uploads, get the MP4 from YouTube Studio. To check MediaFlow, try the sample file below.'
+            : 'The source did not provide a downloadable file. Open the original post or try the sample file below.')
         : message;
       const original = $('mf-open-source');
       original.href = url;
       original.hidden = !blocked;
+      $('mf-youtube-studio').hidden = !youtube;
+      $('try-sample-fallback').hidden = !blocked;
       $('mf-media-error').hidden = false;
     }
     finally {
@@ -297,8 +320,12 @@
     $('audio-source').replaceChildren(new Option('Auto · Best available audio','auto'));
     for(const stream of af) $('audio-source').add(new Option(streamLabel(stream,'audio'),stream.id));
     $('video-source').disabled=!vf.length;$('audio-source').disabled=!af.length;
-    $('stream-count').textContent=`· ${vf.length} video / ${af.length} audio streams`;
+    const direct = Boolean(media.direct_format);
+    $('format-choices').hidden = direct;
+    $('stream-count').textContent=direct ? `· ${media.direct_format} · ${formatSpeed(media.bytes).replace('/s', '')}`
+      : `· ${vf.length} video / ${af.length} audio streams`;
     $('result-panel').hidden=false;chooseMode(media.has_video?'video':'audio');
+    $('download-btn').querySelector('.button-label').textContent=direct ? `Download original ${media.direct_format}` : 'Start download';
     $('result-panel').scrollIntoView({behavior:motion,block:'start'});
   }
   function chooseMode(mode) {

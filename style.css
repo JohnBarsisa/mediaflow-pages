@@ -176,3 +176,8 @@ input, select, button { touch-action:manipulation; }
 /* Source fallback is a link, styled to match the other secondary actions. */
 #mf-open-source{display:inline-flex;text-decoration:none;align-items:center}
 #mf-open-source[hidden]{display:none}
+
+.source-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.source-actions a{display:inline-flex;text-decoration:none}
+.source-actions [hidden],#format-choices[hidden]{display:none}
+.input-footer{flex-wrap:wrap;gap:8px}
